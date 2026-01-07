@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Smart Dairy Sentinel – Virtual Vet</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        /* --- 1. CORE VARIABLES & RESET --- */
+        :root {
+            /* Colors */
+            --primary: #10b981;
+            /* Emerald 500 */
+            --primary-dark: #059669;
+            /* Emerald 600 */
+            --primary-light: #d1fae5;
+            /* Emerald 100 */
+
+            --bg-body: #f3f4f6;
+            /* Slate 100 */
+            --bg-card: #ffffff;
+
+            --text-main: #1f2937;
+            /* Slate 800 */
+            --text-muted: #6b7280;
+            /* Slate 500 */
+
+            --border: #e5e7eb;
+            /* Slate 200 */
+
+            /* Status Colors */
+            --status-healthy: #10b981;
+            --status-warning: #f59e0b;
+            --status-danger: #ef4444;
+            --status-info: #3b82f6;
+
+            /* Chat Bubbles */
+            --chat-user-bg: #10b981;
+            --chat-user-text: #ffffff;
+            --chat-ai-bg: #f3f4f6;
+            --chat-ai-text: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            background-image: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 20%);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* --- 2. LAYOUT --- */
+        .app-container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-box {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .brand-text h1 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .brand-text p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 6px 12px;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge::before {
+            content: '';
+            display: block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+        }
+
+        /* Token Bar */
+        .token-bar {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 20px;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .token-input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px 10px;
+        }
+
+        .token-input-group input {
+            border: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 0.85rem;
+            width: 180px;
+            color: var(--text-main);
+        }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            height: calc(100vh - 140px);
+            /* Fill remaining height */
+            min-height: 500px;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        /* --- 3. DASHBOARD PANEL (Left) --- */
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            overflow-y: auto;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 15px;
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Cow Status Indicator */
+        .cow-status-card {
+            background: var(--bg-body);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .cow-avatar {
+            font-size: 24px;
+            background: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .cow-info h3 {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .cow-info span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Sensors Grid */
+        .sensors-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .sensor-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            transition: transform 0.2s;
+        }
+
+        .sensor-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+
+        .sensor-head {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .sensor-val {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        /* Simulation Controls */
+        .sim-section h4 {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .sim-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sim-btn {
+            background: white;
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 10px;
+            text-align: left;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sim-btn:hover {
+            background: #f9fafb;
+            border-color: var(--primary);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        /* --- 4. CHAT PANEL (Right) --- */
+        .chat-wrapper {
+            display: flex;
+            gap: 15px;
+            flex: 1;
+            height: 100%;
+            min-height: 0;
+            /* Important for flex child scrolling */
+        }
+
+        /* History Sidebar */
+        .chat-sidebar {
+            width: 260px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            background: var(--text-main);
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .new-chat-btn:hover {
+            background: #000;
+        }
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .history-item {
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            transition: all 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item:hover {
+            background: #f3f4f6;
+        }
+
+        .history-item.active {
+            background: #ecfdf5;
+            color: #059669;
+            font-weight: 500;
+        }
+
+        .delete-btn {
+            background: transparent;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .history-item:hover .delete-btn {
+            display: block;
+        }
+
+        .delete-btn:hover {
+            color: #ef4444;
+            background: #fee2e2;
+        }
+
+        .chat-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-area {
+            flex: 1;
+            background: #f9fafb;
+            /* Inner chat bg */
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border: 1px solid var(--border);
+        }
+
+        /* Messages */
+        .message-row {
+            display: flex;
+            gap: 12px;
+            max-width: 85%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-row.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .avatar.ai {
+            background: white;
+            color: var(--primary);
+            border: 1px solid var(--border);
+        }
+
+        .avatar.user {
+            background: var(--primary-light);
+            color: var(--primary-dark);
+        }
+
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            word-wrap: break-word;
+        }
+
+        .bubble.ai {
+            background: white;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            border-top-left-radius: 2px;
+        }
+
+        .bubble.user {
+            background: var(--primary);
+            color: white;
+            border-top-right-radius: 2px;
+        }
+
+        /* Markdown Styles within Bubble */
+        .bubble.ai p {
+            margin: 0 0 8px 0;
+        }
+
+        .bubble.ai p:last-child {
+            margin: 0;
+        }
+
+        .bubble.ai ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+
+        .bubble.ai strong {
+            color: var(--primary-dark);
+        }
+
+        .time {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            margin-left: 4px;
+        }
+
+        .message-row.user .time {
+            text-align: right;
+            margin-right: 4px;
+        }
+
+        /* Input Area */
+        .input-wrapper {
+            margin-top: 15px;
+            position: relative;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            background: white;
+            border: 1px solid var(--border);
+            padding: 8px;
+            border-radius: 50px;
+            /* Pill shape */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        #userInput {
+            flex: 1;
+            border: none;
+            outline: none;
+            padding: 10px 16px;
+            font-size: 0.95rem;
+            border-radius: 40px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #sendBtn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        #sendBtn:hover:not(:disabled) {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        #sendBtn:disabled {
+            background: var(--border);
+            cursor: default;
+        }
+
+        .disclaimer {
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* Loading Dots */
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 4px 0;
+        }
+
+        .typing span {
+            width: 6px;
+            height: 6px;
+            background: #9ca3af;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        /* Error Banner */
+        .error-banner {
+            background: #fef2f2;
+            border: 1px solid #fee2e2;
+            color: #b91c1c;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <header>
+            <div class="brand">
+                <div class="logo-box">SM</div>
+                <div class="brand-text">
+                    <h1>Smart Dairy Sentinel</h1>
+                    <p>Virtual Farm Assistant & IoT Dashboard</p>
+                </div>
+            </div>
+            <div class="header-meta">
+                <div class="status-badge">
+                    Online & Connected
+                </div>
+            </div>
+        </header>
+
+        <div class="token-bar">
+            <div style="color: var(--text-muted);">
+                <strong>Config:</strong> Ensure Backend is running at <code>127.0.0.1:8000</code>
+            </div>
+            <div style="display:flex; gap:15px; align-items:center;">
+                <span style="font-size:0.8rem; color:var(--text-muted);">Optional Client-Side Override:</span>
+                <div class="token-input-group">
+                    <span style="font-size:0.8rem; color:#9ca3af;">hf_</span>
+                    <input type="password" id="apiKey" placeholder="token (if not set in backend)" autocomplete="off">
+                </div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+
+            <aside class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Live Sensor Data</div>
+                    <div class="panel-title" style="font-size:0.7rem; color:var(--text-muted);">ID: #COW-104</div>
+                </div>
+
+                <div class="cow-status-card">
+                    <div class="cow-avatar">🐄</div>
+                    <div class="cow-info">
+                        <h3 id="scenarioLabel">Healthy Cow</h3>
+                        <span id="scenarioSub">Baseline Readings</span>
+                    </div>
+                </div>
+
+                <div class="sensors-grid">
+                    <div class="sensor-card">
+                        <div class="sensor-head">
+                            <span>Temp</span> <span>°C</span>
+                        </div>
+                        <div class="sensor-val" id="tempValue">38.5</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-head">
+                            <span>Heart</span> <span>BPM</span>
+                        </div>
+                        <div class="sensor-val" id="hrValue">60</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-head">
+                            <span>Activity</span> <span>/hr</span>
+                        </div>
+                        <div class="sensor-val" id="activityValue">520</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-head">
+                            <span>Cond.</span> <span>mS</span>
+                        </div>
+                        <div class="sensor-val" id="condValue">5.5</div>
+                    </div>
+                    <div class="sensor-card" style="grid-column: span 2;">
+                        <div class="sensor-head">
+                            <span>Milk pH</span> <span>pH</span>
+                        </div>
+                        <div class="sensor-val" id="phValue">6.7</div>
+                    </div>
+                </div>
+
+                <div class="sim-section">
+                    <div style="height:1px; background:var(--border); margin: 10px 0 15px 0;"></div>
+                    <h4>Inject Simulation Data</h4>
+                    <div class="sim-grid">
+                        <button class="sim-btn" onclick="simulateHealthy()">
+                            <span class="dot" style="background:var(--status-healthy);"></span> Normal / Healthy
+                        </button>
+                        <button class="sim-btn" onclick="simulateFever()">
+                            <span class="dot" style="background:var(--status-warning);"></span> High Fever
+                        </button>
+                        <button class="sim-btn" onclick="simulateMastitis()">
+                            <span class="dot" style="background:var(--status-danger);"></span> Mastitis Detection
+                        </button>
+                        <button class="sim-btn" onclick="simulateEstrus()">
+                            <span class="dot" style="background:var(--status-info);"></span> Estrus (High Activity)
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <section class="panel chat-layout"
+                style="padding:0; overflow: hidden; border:none; background:transparent;">
+                <div class="chat-wrapper">
+                    <!-- SIDEBAR -->
+                    <div class="chat-sidebar">
+                        <div class="sidebar-header">
+                            <button class="new-chat-btn" onclick="startNewChat()">
+                                <span>+</span> New Chat
+                            </button>
+                        </div>
+                        <div class="history-list" id="historyList">
+                            <!-- Items go here -->
+                        </div>
+                    </div>
+
+                    <!-- CHAT AREA -->
+                    <div class="panel chat-layout"
+                        style="border:1px solid var(--border); border-radius:16px; background:var(--bg-card);">
+                        <div class="panel-header" style="border:none; padding-bottom:10px;">
+                            <div class="panel-title">Virtual Vet Assistant</div>
+                            <div class="panel-title" style="font-size:1.2rem;">✨</div>
+                        </div>
+
+                        <div class="chat-area" id="chatContainer">
+                        </div>
+
+                        <div class="input-wrapper">
+                            <div class="error-banner" id="errorBanner">
+                                <span>⚠️</span> <span id="errorText">Error message</span>
+                            </div>
+
+                            <div class="input-container">
+                                <input type="text" id="userInput" placeholder="Ask about the cow's health..." />
+                                <button id="sendBtn">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="disclaimer">
+                                AI generated advice. Always consult a real veterinarian for emergencies.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        /* ============================================================
+           LOGIC CONFIGURATION
+           ============================================================ */
+        const API_URL = "http://127.0.0.1:8000/chat"; // Pointing to your local Python Backend
+        const MODEL_ID = "llama-3.3-70b-versatile";
+
+        // DOM Elements
+        const chatContainer = document.getElementById("chatContainer");
+        const userInput = document.getElementById("userInput");
+        const sendBtn = document.getElementById("sendBtn");
+        const apiKeyInput = document.getElementById("apiKey");
+        const errorBanner = document.getElementById("errorBanner");
+        const errorText = document.getElementById("errorText");
+        const historyList = document.getElementById("historyList");
+
+        // Sensor Elements
+        const tempEl = document.getElementById("tempValue");
+        const hrEl = document.getElementById("hrValue");
+        const actEl = document.getElementById("activityValue");
+        const condEl = document.getElementById("condValue");
+        const phEl = document.getElementById("phValue");
+        const scenLabel = document.getElementById("scenarioLabel");
+        const scenSub = document.getElementById("scenarioSub");
+
+        // --- STATE ---
+        let sessionID = Date.now().toString(); // Simple ID
+        let conversation = []; // Current active messages
+        let savedSessions = []; // [{id, title, messages}]
+
+        // --- SENSOR STATE ---
+        const sensorState = {
+            scenario: "Healthy Cow",
+            scenarioKey: "healthy",
+            bodyTempC: 38.5,
+            heartRateBpm: 133,
+            activityStepsPerHour: 500,
+            milkConductivity: 5,
+            milkPh: 6.5
+        };
+
+        function renderSensors() {
+            tempEl.innerText = sensorState.bodyTempC.toFixed(1);
+            hrEl.innerText = Math.round(sensorState.heartRateBpm);
+            actEl.innerText = Math.round(sensorState.activityStepsPerHour);
+            condEl.innerText = sensorState.milkConductivity.toFixed(1);
+            phEl.innerText = sensorState.milkPh.toFixed(1);
+            scenLabel.innerText = sensorState.scenario;
+
+            // Color coding logic
+            tempEl.style.color = sensorState.bodyTempC > 39.5 ? 'var(--status-danger)' : 'var(--text-main)';
+            condEl.style.color = sensorState.milkConductivity > 6.0 ? 'var(--status-danger)' : 'var(--text-main)';
+        }
+
+        // --- SIMULATIONS ---
+        window.simulateHealthy = () => {
+            setSim("Healthy Cow", "healthy", 38.5, 60, 520, 5.5, 6.7);
+        };
+        window.simulateFever = () => {
+            setSim("High Fever", "fever", 40.3, 88, 260, 6.2, 6.8);
+        };
+        window.simulateMastitis = () => {
+            setSim("Mastitis Risk", "mastitis", 39.4, 78, 410, 8.8, 7.1);
+        };
+        window.simulateEstrus = () => {
+            setSim("Estrus (Active)", "estrus", 38.9, 84, 1800, 5.6, 6.7);
+        };
+
+        function setSim(name, key, t, hr, act, cond, ph) {
+            sensorState.scenario = name;
+            sensorState.scenarioKey = key;
+            sensorState.bodyTempC = t;
+            sensorState.heartRateBpm = hr;
+            sensorState.activityStepsPerHour = act;
+            sensorState.milkConductivity = cond;
+            sensorState.milkPh = ph;
+            renderSensors();
+        }
+
+        // Initialize
+        renderSensors();
+        loadHistoryFromStorage();
+
+        // If no history, create intro
+        if (savedSessions.length === 0) {
+            startNewChat(false);
+        } else {
+            // Load most recent
+            loadSession(savedSessions[0].id);
+        }
+
+        // --- HISTORY MANAGEMENT ---
+        function loadHistoryFromStorage() {
+            const raw = localStorage.getItem("sds_chat_history");
+            if (raw) {
+                try {
+                    savedSessions = JSON.parse(raw);
+                } catch (e) {
+                    savedSessions = [];
+                }
+            }
+            renderSidebar();
+        }
+
+        function saveHistoryToStorage() {
+            // Update current session in array
+            const idx = savedSessions.findIndex(s => s.id === sessionID);
+            const sessionObj = {
+                id: sessionID,
+                title: conversation.length > 0 ? conversation[0].content.substring(0, 30) + (conversation[0].content.length > 30 ? "..." : "") : "New Chat",
+                messages: conversation
+            };
+
+            if (idx > -1) {
+                savedSessions[idx] = sessionObj;
+            } else {
+                savedSessions.unshift(sessionObj);
+            }
+
+            localStorage.setItem("sds_chat_history", JSON.stringify(savedSessions));
+            renderSidebar();
+        }
+
+        function renderSidebar() {
+            historyList.innerHTML = "";
+            savedSessions.forEach(sess => {
+                const el = document.createElement("div");
+                el.className = `history-item ${sess.id === sessionID ? 'active' : ''}`;
+
+                // Title Span
+                const titleSpan = document.createElement("span");
+                titleSpan.innerText = sess.title || "Untitled Chat";
+                titleSpan.style.overflow = "hidden";
+                titleSpan.style.textOverflow = "ellipsis";
+                titleSpan.onclick = () => loadSession(sess.id);
+                el.appendChild(titleSpan);
+
+                // Delete Button
+                const delBtn = document.createElement("button");
+                delBtn.className = "delete-btn";
+                delBtn.innerHTML = "&times;";
+                delBtn.title = "Delete Chat";
+                delBtn.onclick = (e) => {
+                    e.stopPropagation(); // Prevent loading the chat when deleting
+                    deleteSession(sess.id);
+                };
+                el.appendChild(delBtn);
+
+                historyList.appendChild(el);
+            });
+        }
+
+        function deleteSession(id) {
+            if (!confirm("Are you sure you want to delete this chat?")) return;
+
+            // Remove from array
+            savedSessions = savedSessions.filter(s => s.id !== id);
+            localStorage.setItem("sds_chat_history", JSON.stringify(savedSessions));
+
+            // If we deleted the current session, start a new one
+            if (id === sessionID) {
+                if (savedSessions.length > 0) {
+                    loadSession(savedSessions[0].id);
+                } else {
+                    startNewChat(false);
+                }
+            } else {
+                renderSidebar();
+            }
+        }
+
+        function startNewChat(shouldSave = true) {
+            // If current is empty, don't create new duplicate
+            if (conversation.length === 0) return;
+
+            sessionID = Date.now().toString();
+            conversation = [];
+            chatContainer.innerHTML = "";
+
+            // Add Welcome
+            const welcomeMsg = "Hello! I'm observing the sensor data. How can I help you with this cow?";
+            // Don't add to conversation history until user types, so we don't spam empty chats? 
+            // Actually let's just show it.
+            appendMessage(welcomeMsg, "ai", false, false);
+
+            renderSidebar();
+        }
+
+        function loadSession(id) {
+            const sess = savedSessions.find(s => s.id === id);
+            if (!sess) return;
+
+            sessionID = id;
+            conversation = sess.messages || [];
+
+            // Re-render chat
+            chatContainer.innerHTML = "";
+
+            // If empty, show welcome (legacy check)
+            // If empty, show welcome (legacy check)
+            if (conversation.length === 0) {
+                appendMessage("Hello! I'm observing the sensor data. How can I help you with this cow?", "ai", false, false);
+            } else {
+                conversation.forEach(msg => {
+                    // Restore chat (note: history usually doesn't save sources in this simple implementation, 
+                    // unless we add sources to savedSessions message object. For now we skip restoring sources to keep it simple.)
+                    appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', false, false);
+                });
+            }
+
+            renderSidebar();
+        }
+
+
+        // --- CHAT LOGIC ---
+        function appendMessage(text, sender, isLoading = false, pushToState = true, sources = []) {
+            const row = document.createElement("div");
+            row.className = `message-row ${sender}`;
+
+            // Avatar
+            const avatar = document.createElement("div");
+            avatar.className = `avatar ${sender}`;
+            avatar.textContent = sender === 'user' ? 'You' : 'AI';
+
+            // Bubble
+            const bubble = document.createElement("div");
+            bubble.className = `bubble ${sender}`;
+
+            if (isLoading) {
+                bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+            } else if (sender === 'ai') {
+                // Content
+                const contentDiv = document.createElement("div");
+                contentDiv.innerHTML = marked.parse(text);
+                bubble.appendChild(contentDiv);
+
+                // Sources Footer
+                if (sources && sources.length > 0) {
+                    const footer = document.createElement("div");
+                    footer.style.marginTop = "10px";
+                    footer.style.fontSize = "0.75rem";
+                    footer.style.opacity = "0.8";
+                    footer.style.borderTop = "1px solid rgba(0,0,0,0.1)";
+                    if (sender === 'ai') footer.style.borderTop = "1px solid rgba(255,255,255,0.3)"; // Adjust border for AI bubble
+                    footer.style.paddingTop = "6px";
+
+                    // Clean filenames (remove path)
+                    const clearNames = sources.map(s => s.split(/[\\/]/).pop());
+                    footer.innerHTML = "<strong>📚 Sources:</strong> " + clearNames.join(", ");
+                    bubble.appendChild(footer);
+                }
+            } else {
+                bubble.textContent = text;
+            }
+
+            // Time
+            const time = document.createElement("div");
+            time.className = "time";
+            time.innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            // Construct
+            const contentCol = document.createElement("div");
+            contentCol.style.display = 'flex';
+            contentCol.style.flexDirection = 'column';
+            contentCol.appendChild(bubble);
+            contentCol.appendChild(time);
+
+            if (sender === 'ai') {
+                row.appendChild(avatar);
+                row.appendChild(contentCol);
+            } else {
+                row.appendChild(avatar); // Visual trick: flex-reverse handles position
+                row.appendChild(contentCol);
+            }
+
+            chatContainer.appendChild(row);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            if (pushToState && !isLoading) {
+                conversation.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
+                saveHistoryToStorage();
+            }
+
+            return { row, bubble };
+        }
+
+        async function handleSend() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // Visual Reset
+            errorBanner.style.display = "none";
+
+            // Add User Message
+            appendMessage(text, "user");
+            userInput.value = "";
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+
+            // Add Loading Bubble
+            const loadingRef = appendMessage("", "ai", true, false);
+
+            // Prepare Payload
+            // 1. Clean history for backend (remove client-side only stuff if any)
+            // 2. We send everything except the message we just added? No, send all previous.
+
+            // The last message added to `conversation` is the user's current message.
+            // Wait, we pushed to `conversation` inside appendMessage. 
+            // So `conversation` now includes the latest user message at the end.
+
+            // Backend expects:
+            // message: str (current)
+            // history: List[Message] (previous)
+
+            const historyToSend = conversation.slice(0, -1).map(msg => ({
+                role: msg.role === 'user' ? 'user' : 'assistant', // ensure compatibility
+                content: msg.content
+            }));
+
+            const payload = {
+                message: text,
+                sensorState: sensorState,
+                history: historyToSend
+            };
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error("Backend Error: " + res.statusText);
+
+                const data = await res.json();
+
+                // Remove loading, add real response
+                loadingRef.row.remove();
+                appendMessage(data.reply, "ai", false, true, data.sources);
+
+            } catch (err) {
+                console.error(err);
+                loadingRef.row.remove();
+                errorText.innerText = "Connection Failed. Is the backend running?";
+                errorBanner.style.display = "flex";
+            } finally {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        // Listeners
+        sendBtn.addEventListener("click", handleSend);
+        userInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") handleSend();
+        });
+
+    </script>
+
+</body>
+
+</html>
