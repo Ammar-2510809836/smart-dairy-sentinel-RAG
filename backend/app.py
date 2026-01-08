@@ -144,7 +144,7 @@ def classify_question(query: str) -> str:
     if any(k in q for k in system_keywords): return QueryCategory.SYSTEM
 
     # 🟩 Signal E: Operational / Educational (Default fallback for "how to")
-    if "how to" in q or "what is" in q or "explain" in q:
+    if "how to" in q or "what is" in q or "explain" in q or "how are you" in q:
         return QueryCategory.OPERATIONAL
 
     return QueryCategory.UNKNOWN
@@ -167,7 +167,8 @@ def is_out_of_scope(query: str) -> bool:
         "laminitis", "dermatitis", "downer", "placenta", "endometritis", "infertility",
         "dystocia", "clots", "flakes", "campylobacter",
         "hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening",
-        "thanks", "thank you","temperature","conductivity","ph","activity","steps","heart rate","bpm","steps per hour","temp",
+        "thanks", "thank you", "how are you", "how are you doing", 
+        "temperature","conductivity","ph","activity","steps","heart rate","bpm","steps per hour","temp",
     ]
     
     q_lower = query.lower()
@@ -188,7 +189,8 @@ def is_out_of_scope(query: str) -> bool:
 
     # Otherwise, require at least one DAIRY keyword
     # If NO dairy keyword is found, it is Out of Scope.
-    return not any(keyword in q_lower for keyword in allowed_keywords)
+    has_keyword = any(keyword in q_lower for keyword in allowed_keywords)
+    return not has_keyword
 
 
 def get_system_prompt(category: str) -> str:
@@ -320,7 +322,17 @@ def build_context(sensor: Optional[SensorState], query: str) -> tuple[str, list[
             )
     
     # 2. RAG Data
-    docs = retrieve_chunks(query, k=3)
+    # Skip RAG for simple greetings/short phrases to avoid noise
+    import re
+    # Regex to match exact greetings with optional punctuation/whitespace
+    greeting_pattern = r"^\s*(hi|hello|hey|hi there|hello there|greetings|good morning|good afternoon|good evening|thanks|thank you|ok|okay|how are you|how are you doing)\s*[!.,?]*\s*$"
+    
+    is_greeting = re.match(greeting_pattern, query, re.IGNORECASE)
+    
+    if is_greeting:
+        docs = []
+    else:
+        docs = retrieve_chunks(query, k=3)
     rag_text = "\n".join([f"- {d['text']}" for d in docs]) if docs else "No specific manual info."
     
     # Extract sources (files) from chunks
