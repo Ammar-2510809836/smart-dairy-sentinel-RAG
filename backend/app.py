@@ -120,6 +120,12 @@ def classify_question(query: str) -> str:
     ]
     if any(k in q for k in emergency_keywords): return QueryCategory.EMERGENCY
     if "2 days" in q and "eat" in q: return QueryCategory.EMERGENCY # Specific time combo
+    
+    # 🟩 Signal E: Operational / Educational (Priority: Check DEFINITIONS before SYMPTOMS)
+    # If user asks "What is temp?" or "Normal range?", it's educational, not an alarm.
+    op_keywords = ["how to", "what is", "explain", "how are you", "normal", "range", "define", "meaning", "should be"]
+    if any(k in q for k in op_keywords):
+        return QueryCategory.OPERATIONAL
 
     # 🟧 Signal B: Health Concern
     health_keywords = [
@@ -143,9 +149,8 @@ def classify_question(query: str) -> str:
     ]
     if any(k in q for k in system_keywords): return QueryCategory.SYSTEM
 
-    # 🟩 Signal E: Operational / Educational (Default fallback for "how to")
-    if "how to" in q or "what is" in q or "explain" in q or "how are you" in q:
-        return QueryCategory.OPERATIONAL
+    return QueryCategory.UNKNOWN
+
 
     return QueryCategory.UNKNOWN
 
@@ -219,12 +224,13 @@ def get_system_prompt(category: str) -> str:
             "The user is reporting a serious, possibly life-threatening situation.\n"
             "RULES:\n"
             "1. Be fast, direct, and authoritative.\n"
-            "2. Prioritize safety over completeness. Tell them to CALL A VET immediately.\n"
-            "3. Structure:\n"
+            "2. TRUST the Sensor Status provided in context (e.g. if 'NORMAL ✅', do not say it is high).\n"
+            "3. If user says 'cold' but temp is Normal, suspect MILK FEVER (Hypocalcemia) or SHOCK, NOT Heat Stress.\n"
+            "4. Structure:\n"
             "   🚨 **CRITICAL WARNING**\n"
-            "   [State why this is urgent]\n"
+            "   [State the likely issue based on signs. e.g. 'Symptoms suggest Milk Fever...']\n\n"
             "   🩺 **Immediate Actions**\n"
-            "   [Bulleted list of first aid or checks]\n"
+            "   [Bulleted list of first aid]\n\n"
             "   ❗ **Recommendation**\n"
             "   [Call Vet / Emergency procedure]\n"
             "STOP. Do not chatter."
@@ -239,13 +245,13 @@ def get_system_prompt(category: str) -> str:
             "2. Suggest observations, not just diagnosis.\n"
             "3. Structure:\n"
             "   🚨 **Why this matters**\n"
-            "   [Brief impact]\n"
+            "   [Brief impact]\n\n"
             "   🩺 **Common causes**\n"
-            "   [Bulleted list]\n"
+            "   [Bulleted list]\n\n"
             "   🔍 **Check immediately**\n"
-            "   [Physical signs to look for]\n"
+            "   [Physical signs to look for]\n\n"
             "   🤖 **Sensor Check**\n"
-            "   [Compare user query to current sensor stats]\n"
+            "   [Compare user query to current sensor stats]\n\n"
             "   ❗ **Action**\n"
             "   [Monitor/Treat/Vet]\n"
             "STOP. Do not chatter."
@@ -279,12 +285,18 @@ def get_system_prompt(category: str) -> str:
 
     else: # OPERATIONAL / UNKNOWN / GENERAL
         return (
-            f"{base_identity} 🟩 MODE: GENERAL ASSISTANCE.\n"
-            "Answer the farmer's question practically and clearly.\n"
-            "If explaining a concept, use:\n"
-            "   ℹ️ **Explanation**\n"
-            "   ✅ **Best Practices**\n"
-            "   💡 **Tip**\n\n"
+            f"{base_identity} 🟩 MODE: GENERAL ASSISTANCE / EDUCATIONAL.\n"
+            "The user is asking for a definition, a normal range, or general info.\n"
+            "RULES:\n"
+            "1. Be objective, concise, and use the user's requested format.\n"
+            "2. DO NOT be alarmist. This is a reference lookup.\n"
+            "3. Structure:\n"
+            "   ℹ️ **Normal Range/Definition**\n"
+            "   [e.g. Normal adult cow temperature: about 38.0–39.3°C]\n"
+            "   🤖 **Sensor Reading**\n"
+            "   [Compare current sensor value to the normal range. e.g. '38.5°C -> Normal']\n"
+            "   ❗ **Call a Vet if...**\n"
+            "   [State specific thresholds, e.g. >= 39.5°C or <= 37.5°C]\n"
             "CRITICAL: If the question is not about dairy farming, REFUSE TO ANSWER."
         )
 
@@ -306,6 +318,26 @@ def validate_sensor_data(sensor: SensorState) -> list[str]:
 
     return warnings
 
+def analyze_sensor_health(s: SensorState) -> str:
+    """Analyzes sensor data against hard medical thresholds and returns a status string."""
+    # Temperature (Adult Cow)
+    if s.bodyTempC >= 39.5:
+        temp_status = "FEVER 🥵"
+    elif s.bodyTempC <= 37.5:
+        temp_status = "HYPOTHERMIA 🥶"
+    elif 38.0 <= s.bodyTempC <= 39.3:
+        temp_status = "NORMAL ✅"
+    else:
+        temp_status = "SLIGHTLY ABNORMAL ⚠️" # 37.6-37.9 or 39.4
+
+    # Activity
+    if s.activityStepsPerHour < 100: # Arbitrary low threshold for 'downer'?
+        act_status = "LOW ACTIVITY ⚠️"
+    else:
+        act_status = "Active"
+
+    return f"[Temp: {s.bodyTempC}C ({temp_status}), HR: {s.heartRateBpm}, Steps: {s.activityStepsPerHour} ({act_status})]"
+
 def build_context(sensor: Optional[SensorState], query: str) -> tuple[str, list[str]]:
     # 1. Sensor Data
     s_text = "No sensor data."
@@ -316,10 +348,9 @@ def build_context(sensor: Optional[SensorState], query: str) -> tuple[str, list[
             # If data is impossible, FORCE the AI to see the error
             s_text = f"⚠ SENSOR FAILURE DETECTED ⚠\n" + "\n".join(warnings) + "\n(Do NOT hallucinate normal values. Report this error.)"
         else:
-            s_text = (
-                f"Sensors: [Temp: {sensor.bodyTempC}C, HR: {sensor.heartRateBpm}, "
-                f"Steps: {sensor.activityStepsPerHour}, Milk Cond: {sensor.milkConductivity}, pH: {sensor.milkPh}]"
-            )
+            # Generate smart summary with medical ranges
+            health_summary = analyze_sensor_health(sensor)
+            s_text = f"Sensors: {health_summary}"
     
     # 2. RAG Data
     # Skip RAG for simple greetings/short phrases to avoid noise
