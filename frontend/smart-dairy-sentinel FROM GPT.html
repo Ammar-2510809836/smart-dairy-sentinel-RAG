@@ -546,6 +546,31 @@
 
         .bubble.ai strong {
             color: var(--primary-dark);
+            font-weight: 700;
+        }
+
+        /* Improved Headers in Chat */
+        .bubble.ai h1, .bubble.ai h2, .bubble.ai h3, .bubble.ai h4 {
+            margin: 12px 0 6px 0;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #111827;
+            display: block;
+        }
+
+        /* Add icons/color to headers if they match specific keywords */
+        .bubble.ai h3:contains("Why this matters"), .bubble.ai strong:contains("Why this matters") {
+             color: #ef4444; /* Red for alert */
+        }
+        
+        .bubble.ai em {
+            color: #4b5563;
+            font-style: italic;
+        }
+        
+        /* List spacing */
+        .bubble.ai li {
+            margin-bottom: 4px;
         }
 
         .time {

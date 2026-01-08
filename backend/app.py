@@ -123,7 +123,8 @@ def classify_question(query: str) -> str:
     
     # 🟩 Signal E: Operational / Educational (Priority: Check DEFINITIONS before SYMPTOMS)
     # If user asks "What is temp?" or "Normal range?", it's educational, not an alarm.
-    op_keywords = ["how to", "what is", "explain", "how are you", "normal", "range", "define", "meaning", "should be"]
+    # Also catch "hungry", "feed" to give practical advice instead of medical alerts.
+    op_keywords = ["how to", "what is", "explain", "how are you", "normal", "range", "define", "meaning", "should be", "hungry", "feed", "food"]
     if any(k in q for k in op_keywords):
         return QueryCategory.OPERATIONAL
 
@@ -174,6 +175,8 @@ def is_out_of_scope(query: str) -> bool:
         "hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening",
         "thanks", "thank you", "how are you", "how are you doing", 
         "temperature","conductivity","ph","activity","steps","heart rate","bpm","steps per hour","temp",
+        "understand", "mean", "talking", "said", "saying", "repeat", "clarify", "explain", "why", "what",
+        "summary", "history", "previous", "last", "context",
     ]
     
     q_lower = query.lower()
@@ -286,17 +289,23 @@ def get_system_prompt(category: str) -> str:
     else: # OPERATIONAL / UNKNOWN / GENERAL
         return (
             f"{base_identity} 🟩 MODE: GENERAL ASSISTANCE / EDUCATIONAL.\n"
-            "The user is asking for a definition, a normal range, or general info.\n"
+            "The user is asking for a definition, a normal range, or PRACTICAL ADVICE (e.g. feeding).\n"
             "RULES:\n"
             "1. Be objective, concise, and use the user's requested format.\n"
             "2. DO NOT be alarmist. This is a reference lookup.\n"
-            "3. Structure:\n"
-            "   ℹ️ **Normal Range/Definition**\n"
-            "   [e.g. Normal adult cow temperature: about 38.0–39.3°C]\n"
+            "3. IF asking about FEED/HUNGRY/SURVIVAL:\n"
+            "   - List ✅ SAFE ALTERNATIVES (Grass, Rice/Wheat Straw, Banana peels, Veg scraps, Sugarcane leaves).\n"
+            "   - List ❌ DO NOT FEED (Moldy food, Plastic, spicy/oily food).\n"
+            "   - Emphasize WATER is critical.\n"
+            "4. Structure (General):\n"
+            "   ℹ️ **Info / Normal Range**\n"
+            "   [Definition or 'Normal adult cow temperature: 38.0–39.3°C']\n\n"
             "   🤖 **Sensor Reading**\n"
-            "   [Compare current sensor value to the normal range. e.g. '38.5°C -> Normal']\n"
+            "   [Compare current sensor value to normal. e.g. '38.5°C -> Normal']\n\n"
+            "   ✅ **Practical Advice / Alternatives**\n"
+            "   [Bulleted list of actionable steps or safe foods]\n\n"
             "   ❗ **Call a Vet if...**\n"
-            "   [State specific thresholds, e.g. >= 39.5°C or <= 37.5°C]\n"
+            "   [Specific thresholds]\n"
             "CRITICAL: If the question is not about dairy farming, REFUSE TO ANSWER."
         )
 
