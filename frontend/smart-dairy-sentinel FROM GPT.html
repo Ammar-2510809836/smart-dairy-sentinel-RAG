@@ -550,7 +550,10 @@
         }
 
         /* Improved Headers in Chat */
-        .bubble.ai h1, .bubble.ai h2, .bubble.ai h3, .bubble.ai h4 {
+        .bubble.ai h1,
+        .bubble.ai h2,
+        .bubble.ai h3,
+        .bubble.ai h4 {
             margin: 12px 0 6px 0;
             font-size: 1rem;
             font-weight: 700;
@@ -559,15 +562,17 @@
         }
 
         /* Add icons/color to headers if they match specific keywords */
-        .bubble.ai h3:contains("Why this matters"), .bubble.ai strong:contains("Why this matters") {
-             color: #ef4444; /* Red for alert */
+        .bubble.ai h3:contains("Why this matters"),
+        .bubble.ai strong:contains("Why this matters") {
+            color: #ef4444;
+            /* Red for alert */
         }
-        
+
         .bubble.ai em {
             color: #4b5563;
             font-style: italic;
         }
-        
+
         /* List spacing */
         .bubble.ai li {
             margin-bottom: 4px;
@@ -624,6 +629,47 @@
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
+        }
+
+        #micBtn {
+            background: #f3f4f6;
+            color: #4b5563;
+            border: 1px solid var(--border);
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+
+        #micBtn:hover {
+            background: #e5e7eb;
+            transform: scale(1.05);
+        }
+
+        #micBtn.listening {
+            background: #fee2e2;
+            color: #ef4444;
+            border-color: #ef4444;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
         }
 
         #sendBtn:hover:not(:disabled) {
@@ -826,19 +872,14 @@
                             <div class="error-banner" id="errorBanner">
                                 <span>⚠️</span> <span id="errorText">Error message</span>
                             </div>
-
                             <div class="input-container">
-                                <input type="text" id="userInput" placeholder="Ask about the cow's health..." />
-                                <button id="sendBtn">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                    </svg>
-                                </button>
+                                <button id="micBtn" title="Speak">🎙️</button>
+                                <input type="text" id="userInput"
+                                    placeholder="Ask about cow health, symptoms, or feeding...">
+                                <button id="sendBtn" title="Send">➤</button>
                             </div>
                             <div class="disclaimer">
-                                AI generated advice. Always consult a real veterinarian for emergencies.
+                                AI can make mistakes. Please verify important info.
                             </div>
                         </div>
                     </div>
@@ -856,13 +897,60 @@
         const MODEL_ID = "llama-3.3-70b-versatile";
 
         // DOM Elements
-        const chatContainer = document.getElementById("chatContainer");
-        const userInput = document.getElementById("userInput");
-        const sendBtn = document.getElementById("sendBtn");
+        const chatContainer = document.getElementById('chatContainer');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const micBtn = document.getElementById('micBtn');
         const apiKeyInput = document.getElementById("apiKey");
         const errorBanner = document.getElementById("errorBanner");
         const errorText = document.getElementById("errorText");
         const historyList = document.getElementById("historyList");
+
+        // Voice State
+        let recognition = null;
+
+        // Init Speech Recognition
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = function () {
+                micBtn.classList.add('listening');
+            };
+
+            recognition.onend = function () {
+                micBtn.classList.remove('listening');
+            };
+
+            recognition.onresult = function (event) {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                handleSend();
+            };
+        } else {
+            micBtn.style.display = 'none'; // Hide if not supported
+            console.log("Speech Recognition not supported");
+        }
+
+
+
+        // Mic Click
+        micBtn.addEventListener('click', () => {
+            if (recognition) {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        });
+
+        // State variables
+        let chatHistory = []; // Stores {id, title, messages}
+        let currentChatId = null;
+        let conversationHistory = []; // Current session messages for API
 
         // Sensor Elements
         const tempEl = document.getElementById("tempValue");
@@ -1031,7 +1119,7 @@
             const welcomeMsg = "Hello! I'm observing the sensor data. How can I help you with this cow?";
             // Don't add to conversation history until user types, so we don't spam empty chats? 
             // Actually let's just show it.
-            appendMessage(welcomeMsg, "ai", false, false);
+            appendMessage("ai", welcomeMsg, null, false, []);
 
             renderSidebar();
         }
@@ -1049,85 +1137,98 @@
             // If empty, show welcome (legacy check)
             // If empty, show welcome (legacy check)
             if (conversation.length === 0) {
-                appendMessage("Hello! I'm observing the sensor data. How can I help you with this cow?", "ai", false, false);
+                appendMessage("ai", "Hello! I'm observing the sensor data. How can I help you with this cow?", null, false, []);
             } else {
                 conversation.forEach(msg => {
                     // Restore chat (note: history usually doesn't save sources in this simple implementation, 
                     // unless we add sources to savedSessions message object. For now we skip restoring sources to keep it simple.)
-                    appendMessage(msg.content, msg.role === 'user' ? 'user' : 'ai', false, false);
+                    appendMessage(msg.role === 'user' ? 'user' : 'ai', msg.content, msg.timestamp, false, msg.sources || []);
                 });
             }
 
             renderSidebar();
         }
 
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
 
         // --- CHAT LOGIC ---
-        function appendMessage(text, sender, isLoading = false, pushToState = true, sources = []) {
-            const row = document.createElement("div");
+        // --- CHAT LOGIC ---
+        // --- CHAT LOGIC ---
+
+
+        async function appendMessage(sender, text, timestamp = null, save = true, sources = []) {
+            const timeStr = timestamp || new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const row = document.createElement('div');
             row.className = `message-row ${sender}`;
 
             // Avatar
-            const avatar = document.createElement("div");
+            const avatar = document.createElement('div');
             avatar.className = `avatar ${sender}`;
-            avatar.textContent = sender === 'user' ? 'You' : 'AI';
+            avatar.textContent = sender === 'user' ? '👤' : '🤖';
 
             // Bubble
-            const bubble = document.createElement("div");
+            const bubble = document.createElement('div');
             bubble.className = `bubble ${sender}`;
 
-            if (isLoading) {
-                bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
-            } else if (sender === 'ai') {
-                // Content
-                const contentDiv = document.createElement("div");
-                contentDiv.innerHTML = marked.parse(text);
-                bubble.appendChild(contentDiv);
+            // Content container 
+            const contentCol = document.createElement("div");
+            contentCol.style.display = 'flex';
+            contentCol.style.flexDirection = 'column';
 
-                // Sources Footer
+            if (sender === 'ai') {
+                // Parse Markdown
+                bubble.innerHTML = marked.parse(text);
+
+                // Append Sources
                 if (sources && sources.length > 0) {
-                    const footer = document.createElement("div");
-                    footer.style.marginTop = "10px";
-                    footer.style.fontSize = "0.75rem";
-                    footer.style.opacity = "0.8";
-                    footer.style.borderTop = "1px solid rgba(0,0,0,0.1)";
-                    if (sender === 'ai') footer.style.borderTop = "1px solid rgba(255,255,255,0.3)"; // Adjust border for AI bubble
-                    footer.style.paddingTop = "6px";
-
-                    // Clean filenames (remove path)
-                    const clearNames = sources.map(s => s.split(/[\\/]/).pop());
-                    footer.innerHTML = "<strong>📚 Sources:</strong> " + clearNames.join(", ");
-                    bubble.appendChild(footer);
+                    const sourceHtml = `
+                        <div style="margin-top:10px; padding-top:8px; border-top:1px solid #e5e7eb; font-size:0.75rem; color:#6b7280;">
+                            <strong>📚 Sources:</strong> ${sources.join(', ')}
+                        </div>
+                     `;
+                    bubble.innerHTML += sourceHtml;
                 }
+
+
             } else {
                 bubble.textContent = text;
             }
 
             // Time
-            const time = document.createElement("div");
-            time.className = "time";
-            time.innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const timeDiv = document.createElement("div");
+            timeDiv.className = "time";
+            timeDiv.innerText = timeStr;
 
-            // Construct
-            const contentCol = document.createElement("div");
-            contentCol.style.display = 'flex';
-            contentCol.style.flexDirection = 'column';
             contentCol.appendChild(bubble);
-            contentCol.appendChild(time);
+            contentCol.appendChild(timeDiv);
 
             if (sender === 'ai') {
                 row.appendChild(avatar);
                 row.appendChild(contentCol);
             } else {
-                row.appendChild(avatar); // Visual trick: flex-reverse handles position
                 row.appendChild(contentCol);
+                row.appendChild(avatar);
+                // fix flex direction for user
+                row.style.flexDirection = 'row-reverse';
+                timeDiv.style.textAlign = 'right';
             }
 
             chatContainer.appendChild(row);
             chatContainer.scrollTop = chatContainer.scrollHeight;
 
-            if (pushToState && !isLoading) {
-                conversation.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
+            if (save) {
+                conversation.push({
+                    role: sender === 'user' ? 'user' : 'assistant',
+                    content: text,
+                    timestamp: timeStr,
+                    sources: sources
+                });
                 saveHistoryToStorage();
             }
 
@@ -1142,28 +1243,24 @@
             errorBanner.style.display = "none";
 
             // Add User Message
-            appendMessage(text, "user");
+            appendMessage("user", text);
             userInput.value = "";
             userInput.disabled = true;
             sendBtn.disabled = true;
 
-            // Add Loading Bubble
-            const loadingRef = appendMessage("", "ai", true, false);
+            // Add Loading Bubble (mock)
+            const loadingRow = document.createElement('div');
+            loadingRow.className = 'message-row ai';
+            loadingRow.innerHTML = `
+                <div class="avatar ai">🤖</div>
+                <div class="bubble ai"><div class="typing"><span></span><span></span><span></span></div></div>
+            `;
+            chatContainer.appendChild(loadingRow);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
 
             // Prepare Payload
-            // 1. Clean history for backend (remove client-side only stuff if any)
-            // 2. We send everything except the message we just added? No, send all previous.
-
-            // The last message added to `conversation` is the user's current message.
-            // Wait, we pushed to `conversation` inside appendMessage. 
-            // So `conversation` now includes the latest user message at the end.
-
-            // Backend expects:
-            // message: str (current)
-            // history: List[Message] (previous)
-
             const historyToSend = conversation.slice(0, -1).map(msg => ({
-                role: msg.role === 'user' ? 'user' : 'assistant', // ensure compatibility
+                role: msg.role === 'user' ? 'user' : 'assistant',
                 content: msg.content
             }));
 
@@ -1184,14 +1281,16 @@
 
                 const data = await res.json();
 
-                // Remove loading, add real response
-                loadingRef.row.remove();
-                appendMessage(data.reply, "ai", false, true, data.sources);
+                // Remove loading
+                loadingRow.remove();
+
+                // Add real response
+                appendMessage("ai", data.reply, null, true, data.sources);
 
             } catch (err) {
                 console.error(err);
-                loadingRef.row.remove();
-                errorText.innerText = "Connection Failed. Is the backend running?";
+                loadingRow.remove();
+                errorText.innerText = "Connection Failed. Is the backend running? " + err.message;
                 errorBanner.style.display = "flex";
             } finally {
                 userInput.disabled = false;
