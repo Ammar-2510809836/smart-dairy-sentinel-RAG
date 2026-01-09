@@ -89,6 +89,7 @@ class QueryCategory:
     REPRODUCTION = "REPRODUCTION" # 🟨 Long-term
     OPERATIONAL = "OPERATIONAL"   # 🟩 Educational
     SYSTEM = "SYSTEM"             # 🟦 Explanatory
+    GREETING = "GREETING"         # 👋 Casual
     OUT_OF_SCOPE = "OUT_OF_SCOPE" # ⛔ Non-Dairy
     UNKNOWN = "UNKNOWN"
 
@@ -111,6 +112,12 @@ def classify_question(query: str) -> str:
     if any(topic in q for topic in forbidden_topics):
         return QueryCategory.OUT_OF_SCOPE
     
+    # 👋 Signal G: Greetings (Check first to avoid 'System' or 'Operational' traps)
+    import re
+    greeting_pattern = r"^\s*(hi|hello|hey|hi there|hello there|greetings|good morning|good afternoon|good evening|thanks|thank you|ok|okay|how are you|how are you doing)\s*[!.,?]*\s*$"
+    if re.match(greeting_pattern, q):
+        return QueryCategory.GREETING
+    
     # 🚨 Signal A: Emergency Keywords
     emergency_keywords = [
         "not eating", "stopped eating", "won't eat", "refusing feed",
@@ -124,7 +131,8 @@ def classify_question(query: str) -> str:
     # 🟩 Signal E: Operational / Educational (Priority: Check DEFINITIONS before SYMPTOMS)
     # If user asks "What is temp?" or "Normal range?", it's educational, not an alarm.
     # Also catch "hungry", "feed" to give practical advice instead of medical alerts.
-    op_keywords = ["how to", "what is", "explain", "how are you", "normal", "range", "define", "meaning", "should be", "hungry", "feed", "food"]
+    # Removed 'how are you' to let it fall to GREETING.
+    op_keywords = ["how to", "what is", "explain", "normal", "range", "define", "meaning", "should be", "hungry", "feed", "food"]
     if any(k in q for k in op_keywords):
         return QueryCategory.OPERATIONAL
 
@@ -284,6 +292,17 @@ def get_system_prompt(category: str) -> str:
             "1. Be transparent and explainable.\n"
             "2. Admit limitations. Explain how the sensors work.\n"
             "3. No biology guessing here, just tech explanation.\n"
+        )
+
+    elif category == QueryCategory.GREETING:
+        return (
+            f"{base_identity} 👋 MODE: GREETING.\n"
+            "The user is saying hello or asking how you are.\n"
+            "RULES:\n"
+            "1. Be friendly, polite, and professional.\n"
+            "2. Keep it short (1-2 sentences).\n"
+            "3. DO NOT use headers like 'Introduction' or 'Structure'. Just text.\n"
+            "4. Ask how you can help with their dairy farm.\n"
         )
 
     else: # OPERATIONAL / UNKNOWN / GENERAL
